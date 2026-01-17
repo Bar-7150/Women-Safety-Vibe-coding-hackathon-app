@@ -12,6 +12,15 @@ const userSchema = new mongoose.Schema({
         phone: String,
         priority: { type: Boolean, default: false }
     }],
+    sosEvents: [{
+        timestamp: { type: Date, default: Date.now },
+        location: {
+            lat: Number,
+            lng: Number,
+            address: String
+        },
+        videoUrl: String // Path to uploaded video
+    }],
     createdAt: { type: Date, default: Date.now }
 });
 

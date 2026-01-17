@@ -1,9 +1,21 @@
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
+const multer = require('multer');
+const path = require('path');
 
-// Get User (Simulated by ID or simple fetch for demo)
-// GET /api/users/:email
+// Multer Config
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, 'uploads/');
+    },
+    filename: (req, file, cb) => {
+        cb(null, Date.now() + path.extname(file.originalname));
+    }
+});
+const upload = multer({ storage });
+
+// Get User by Email
 router.get('/:email', async (req, res) => {
     try {
         const user = await User.findOne({ email: req.params.email });
@@ -14,50 +26,40 @@ router.get('/:email', async (req, res) => {
     }
 });
 
-// Create/Register User
-// POST /api/users/register
-router.post('/register', async (req, res) => {
-    const { name, email, phone } = req.body;
-    try {
-        let user = await User.findOne({ email });
-        if (user) return res.status(400).json({ message: 'User already exists' });
-
-        user = new User({ name, email, phone, sosContacts: [] });
-        await user.save();
-        res.status(201).json(user);
-    } catch (err) {
-        res.status(400).json({ message: err.message });
-    }
-});
-
-// Add SOS Contact
-// PUT /api/users/:email/contacts
+// Update SOS Contacts
 router.put('/:email/contacts', async (req, res) => {
-    const { name, phone, priority } = req.body;
     try {
         const user = await User.findOne({ email: req.params.email });
         if (!user) return res.status(404).json({ message: 'User not found' });
 
-        user.sosContacts.push({ name, phone, priority });
+        user.sosContacts.push(req.body);
         await user.save();
         res.json(user);
     } catch (err) {
-        res.status(400).json({ message: err.message });
+        res.status(500).json({ message: err.message });
     }
 });
 
-// Delete SOS Contact
-// DELETE /api/users/:email/contacts/:contactId
-router.delete('/:email/contacts/:contactId', async (req, res) => {
+// Upload SOS Recording
+router.post('/sos/upload', upload.single('video'), async (req, res) => {
     try {
-        const user = await User.findOne({ email: req.params.email });
+        const { email, lat, lng } = req.body;
+        const videoUrl = req.file ? `/uploads/${req.file.filename}` : '';
+
+        const user = await User.findOne({ email });
         if (!user) return res.status(404).json({ message: 'User not found' });
 
-        user.sosContacts = user.sosContacts.filter(c => c._id.toString() !== req.params.contactId);
+        user.sosEvents.push({
+            timestamp: new Date(),
+            location: { lat, lng },
+            videoUrl
+        });
+
         await user.save();
-        res.json(user);
+        res.status(200).json({ message: 'SOS Event Recorded', videoUrl });
     } catch (err) {
-        res.status(400).json({ message: err.message });
+        console.error("Upload Error:", err);
+        res.status(500).json({ message: 'Server Error' });
     }
 });
 

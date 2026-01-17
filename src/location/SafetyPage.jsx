@@ -200,43 +200,82 @@ const SafetyPage = () => {
         }
     };
 
-    const handleSOS = () => {
-        if (!user || !user.sosContacts || user.sosContacts.length === 0) {
+    const mediaRecorderRef = useRef(null);
+    const chunksRef = useRef([]);
+
+    // Stop Recording Function
+    const stopSOS = () => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+            mediaRecorderRef.current.stop();
+            // Also stop tracks
+            mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+        }
+        setSosActive(false);
+        setStatusMessage("Monitoring Location");
+    };
+
+    const handleSOS = async () => {
+        if (!user || user.sosContacts.length === 0) {
             alert("⚠️ Please add an SOS Contact first!");
             setShowSettings(true);
             return;
         }
 
         setSosActive(true);
-        setStatusMessage("INITIATING SOS...");
+        setStatusMessage("RECORDING & SENDING ALERT...");
 
+        // 1. WhatsApp SOS Logic
         const lat = currentPosition[0];
         const lng = currentPosition[1];
         const mapLink = `https://www.google.com/maps?q=${lat},${lng}`;
         const message = `🚨 HELP! I am in danger. My location: ${mapLink}`;
-
-        // Use primary contact (last added or first)
-        const contact = user.sosContacts[user.sosContacts.length - 1]; // Get latest
-
-        // Construct URLs
+        const contact = user.sosContacts[user.sosContacts.length - 1];
         const encodedMessage = encodeURIComponent(message);
         const whatsappAppUrl = `whatsapp://send?phone=${contact.phone}&text=${encodedMessage}`;
         const whatsappWebUrl = `https://web.whatsapp.com/send?phone=${contact.phone}&text=${encodedMessage}`;
 
-        // Try to open app directly
-        window.location.href = whatsappAppUrl;
+        window.location.href = whatsappAppUrl; // Try App
+        setTimeout(() => window.open(whatsappWebUrl, '_blank'), 1500); // Fallback
 
-        // Fallback for desktop if app not installed (opens in new tab after short delay)
-        // This is a common pattern to handle deep link failures
-        setTimeout(() => {
-            window.open(whatsappWebUrl, '_blank');
-        }, 1500);
+        // 2. Camera/Mic Recording Logic
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+                mediaRecorderRef.current = new MediaRecorder(stream);
+                chunksRef.current = [];
 
-        setStatusMessage(`SOS SENT TO ${contact.name}!`);
-        setTimeout(() => {
-            setSosActive(false);
-            setStatusMessage("Monitoring Location");
-        }, 5000);
+                mediaRecorderRef.current.ondataavailable = (e) => {
+                    if (e.data.size > 0) chunksRef.current.push(e.data);
+                };
+
+                mediaRecorderRef.current.onstop = async () => {
+                    const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+                    const uniqueFilename = `sos_${Date.now()}.webm`;
+                    const formData = new FormData();
+                    formData.append('video', blob, uniqueFilename);
+                    formData.append('email', user.email);
+                    formData.append('lat', lat);
+                    formData.append('lng', lng);
+
+                    // Upload to Backend
+                    try {
+                        await fetch('http://localhost:5000/api/users/sos/upload', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        alert("Recording Uploaded Securely.");
+                    } catch (err) {
+                        console.error("Upload Failed", err);
+                    }
+                };
+
+                mediaRecorderRef.current.start();
+                setStatusMessage("🔴 RECORDING SOS EVEDINCE...");
+            } catch (err) {
+                console.error("Camera Access Denied", err);
+                alert("Camera Access Denied - SOS Text Sent Only");
+            }
+        }
     };
 
     return (
@@ -341,10 +380,17 @@ const SafetyPage = () => {
                 </div>
 
                 <div className="sos-section">
-                    <button className={`sos-button ${sosActive ? 'active' : ''}`} onClick={handleSOS}>
-                        <span className="sos-label">SOS</span>
-                        <span className="sos-subtext">Click to Send</span>
-                    </button>
+                    {!sosActive ? (
+                        <button className="sos-button" onClick={handleSOS}>
+                            <span className="sos-label">SOS</span>
+                            <span className="sos-subtext">Click to Send & Record</span>
+                        </button>
+                    ) : (
+                        <button className="sos-button active" onClick={stopSOS} style={{ background: 'linear-gradient(135deg, #1e293b, #0f172a)' }}>
+                            <span className="sos-label" style={{ fontSize: '1.2rem' }}>STOP SOS</span>
+                            <span className="sos-subtext">Stop Recording</span>
+                        </button>
+                    )}
                 </div>
 
                 <div className="nearby-places-section">

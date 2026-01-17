@@ -58,9 +58,9 @@ export default function Navbar() {
                 <div className="hidden md:flex items-center gap-4">
                     {isAuthenticated ? (
                         <>
-                            <span className="text-sm font-medium text-slate-700">
-                                Welcome, <span className="text-purple-600">{localStorage.getItem('userName') || 'User'}</span>
-                            </span>
+                            <Link to="/profile" className="text-sm font-medium text-slate-700 hover:text-purple-600 transition-colors">
+                                Welcome, <span className="text-purple-600 font-bold">{localStorage.getItem('userName') || 'User'}</span>
+                            </Link>
                             <button
                                 onClick={handleLogout}
                                 className="px-6 py-2.5 rounded-full bg-red-50 text-red-600 font-semibold text-sm hover:bg-red-100 transition-colors"
