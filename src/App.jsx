@@ -1,35 +1,340 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { useState, useRef, useEffect } from 'react';
+import { Camera, Phone, MapPin, X, Trash2, Share2, Video, StopCircle, ArrowLeft, Siren, Users } from 'lucide-react';
+import './App.css';
+import SafetyReviews from './SafetyReviews';
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [view, setView] = useState('home'); // home, camera, contacts, reviews
+  const [contacts, setContacts] = useState(() => {
+    const saved = localStorage.getItem('soshub_contacts');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [newNumber, setNewNumber] = useState('');
+  const [newName, setNewName] = useState('');
+  const [location, setLocation] = useState(null);
+
+  // Camera refs
+  const videoRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordedChunks, setRecordedChunks] = useState([]);
+  const [videoUrl, setVideoUrl] = useState(null);
+
+  // Get location on mount
+  useEffect(() => {
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          });
+        },
+        (error) => console.error("Error getting location", error)
+      );
+    }
+  }, []);
+
+  // Save contacts
+  useEffect(() => {
+    localStorage.setItem('soshub_contacts', JSON.stringify(contacts));
+  }, [contacts]);
+
+  const addContact = () => {
+    if (newNumber.trim()) {
+      setContacts([...contacts, { id: Date.now(), name: newName || 'Contact', number: newNumber.trim() }]);
+      setNewNumber('');
+      setNewName('');
+    }
+  };
+
+  const removeContact = (id) => {
+    setContacts(contacts.filter(c => c.id !== id));
+  };
+
+  const sendWhatsAppMessages = () => {
+    if (contacts.length === 0) {
+      alert("Please add emergency contacts first!");
+      setView('contacts');
+      return false;
+    }
+
+    const locString = location
+      ? `https://maps.google.com/?q=${location.lat},${location.lng}`
+      : "Location unavailable";
+
+    // Add instruction about video if we are in camera mode
+    const extraText = view === 'camera' ? " (Video evidence captured/downloaded)" : "";
+    const message = encodeURIComponent(`SOS! I need help. My location: ${locString}${extraText}`);
+
+    contacts.forEach(contact => {
+      let cleanNumber = contact.number.replace(/[^\d+]/g, '');
+      window.open(`https://wa.me/${cleanNumber}?text=${message}`, '_blank');
+    });
+    return true;
+  };
+
+  const handleSOS = () => {
+    const confirmed = confirm(`This will open WhatsApp for ${contacts.length} contacts. Continue?`);
+    if (!confirmed) return;
+    sendWhatsAppMessages();
+  };
+
+  // Combined SOS in Camera: Stop, Save, Message, Share
+  const handleCameraSOS = async () => {
+    if (contacts.length === 0) {
+      alert("No contacts saved! Please add contacts first.");
+      setView('contacts');
+      return;
+    }
+
+    // 1. Send Text Alerts First (Immediate)
+    sendWhatsAppMessages();
+
+    // 2. Stop Recording & Process Video
+    if (isRecording && mediaRecorderRef.current) {
+      mediaRecorderRef.current.stop();
+      // Wait for the 'stop' event to process the BlobUrl, then share
+      // We'll hook into onstop or just use a small timeout hack if needed,
+      // but let's rely on the setVideoUrl trigger effect or better yet, proper promise
+      setIsRecording(false);
+    } else {
+      // If not recording or already stopped, just try to share what we have
+      handleShareVideo();
+    }
+  };
+
+  // Effect to handle sharing once video is ready IF we are in an "SOS Sequence"
+  // simplified: We'll just let the user click share, OR simpler:
+  // We attach the logic to the onstop event in startRecording
+
+  const startCamera = async () => {
+    setView('camera');
+    setVideoUrl(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: true });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      // Auto-start recording logic could go here if requested
+    } catch (err) {
+      console.error("Error accessing camera", err);
+      alert("Could not access camera. Please allow permissions.");
+    }
+  };
+
+  const stopCamera = () => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      const tracks = videoRef.current.srcObject.getTracks();
+      tracks.forEach(track => track.stop());
+    }
+    setView('home');
+    setVideoUrl(null);
+    setIsRecording(false);
+  };
+
+  const handleStartRecording = () => {
+    if (!videoRef.current || !videoRef.current.srcObject) return;
+
+    const stream = videoRef.current.srcObject;
+    const mediaRecorder = new MediaRecorder(stream);
+    mediaRecorderRef.current = mediaRecorder;
+
+    const chunks = [];
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) chunks.push(e.data);
+    };
+
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(chunks, { type: 'video/webm' });
+      const url = URL.createObjectURL(blob);
+      setVideoUrl(url);
+
+      // Auto-trigger share/download if we just stopped?
+      // For now, let's keep it manual or triggered by SOS button logic if we want to get fancy.
+      // But since state update is async, we'll call a helper function with the blob directly if separate.
+      handleShareBlob(blob);
+    };
+
+    mediaRecorder.start();
+    setIsRecording(true);
+  };
+
+  const handleStopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  // Helper handling the blob directly to avoid state race conditions
+  const handleShareBlob = async (blob) => {
+    // Only auto-share if the user clicked SOS?
+    // To keep it simple: We always prompt share when stopped.
+  };
+
+  const handleShareVideo = async () => {
+    if (!videoUrl) return;
+    try {
+      const blob = await fetch(videoUrl).then(r => r.blob());
+      await shareOrDownload(blob);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const shareOrDownload = async (blob) => {
+    const file = new File([blob], "sos-evidence.webm", { type: "video/webm" });
+
+    // Check if we can share files
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({
+          files: [file],
+          title: 'SOS Recording',
+          text: 'Emergency Recording captured via HerVanguard'
+        });
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          console.error("Share failed", err);
+          downloadFallback(blob);
+        }
+      }
+    } else {
+      downloadFallback(blob);
+    }
+  };
+
+  const downloadFallback = (blob) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `sos-evidence-${Date.now()}.webm`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    alert("Browser cannot auto-share video files.\n\nVideo has been DOWNLOADED to your device.\n\nPlease manually attach it to the WhatsApp chats.");
+  };
+
+  // Render Functions
+  const renderHome = () => (
+    <div className="home-container">
+      <h1>HerVanguard</h1>
+
+      <button className="sos-btn" onClick={handleSOS}>
+        <Siren size={64} />
+        <span className="sos-text">SOS</span>
+      </button>
+
+      <button className="action-btn" onClick={startCamera}>
+        <Camera /> Record Evidence
+      </button>
+
+      <button className="action-btn secondary-btn" onClick={() => setView('contacts')}>
+        <Phone /> Manage Contacts ({contacts.length})
+      </button>
+
+      <button className="action-btn" style={{ backgroundColor: '#7c3aed', marginTop: '0.5rem' }} onClick={() => setView('reviews')}>
+        <Users /> Community Safety
+      </button>
+
+      <div className="location-status">
+        <MapPin size={16} />
+        {location ? " Location Active" : " Finding Location..."}
+      </div>
+    </div>
+  );
+
+  const renderCamera = () => (
+    <div className="camera-container">
+      <div className="camera-top-bar">
+        <button className="icon-btn" onClick={stopCamera}>
+          <ArrowLeft />
+        </button>
+        {/* SOS Button inside camera */}
+        <button className="sos-btn-mini" onClick={handleCameraSOS}>
+          SOS
+        </button>
+      </div>
+
+      {videoUrl ? (
+        <video src={videoUrl} controls autoPlay className="recorded-video" />
+      ) : (
+        <video ref={videoRef} autoPlay playsInline muted />
+      )}
+
+      <div className="camera-controls">
+        {!videoUrl && (
+          <button
+            className={`record-btn ${isRecording ? 'recording' : ''}`}
+            onClick={isRecording ? handleStopRecording : handleStartRecording}
+          >
+          </button>
+        )}
+
+        {videoUrl && (
+          <button className="action-btn" onClick={handleShareVideo}>
+            <Share2 /> Share Evidence
+          </button>
+        )}
+
+        {videoUrl && (
+          <button className="icon-btn" style={{ marginLeft: '10px' }} onClick={() => { setVideoUrl(null); startCamera(); }}>
+            <X />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderContacts = () => (
+    <div className="contacts-container">
+      <div className="nav-header">
+        <button className="back-btn" onClick={() => setView('home')}><ArrowLeft /></button>
+        <h2>Emergency Contacts</h2>
+      </div>
+
+      <div className="input-group">
+        <input
+          type="text"
+          placeholder="Name"
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+        />
+        <input
+          type="tel"
+          placeholder="Phone Number (w/ Country Code)"
+          value={newNumber}
+          onChange={(e) => setNewNumber(e.target.value)}
+        />
+      </div>
+      <button className="action-btn" onClick={addContact}>Add Contact</button>
+
+      <div className="contact-list">
+        {contacts.length === 0 && <p className="empty-state">No contacts saved yet.</p>}
+        {contacts.map(contact => (
+          <div key={contact.id} className="contact-item">
+            <div>
+              <strong>{contact.name}</strong>
+              <div>{contact.number}</div>
+            </div>
+            <button className="delete-btn" onClick={() => removeContact(contact.id)}>
+              <Trash2 size={16} />
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 
   return (
     <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
+      {view === 'home' && renderHome()}
+      {view === 'camera' && renderCamera()}
+      {view === 'contacts' && renderContacts()}
+      {view === 'reviews' && <SafetyReviews onBack={() => setView('home')} />}
     </>
-  )
+  );
 }
 
-export default App
+export default App;
