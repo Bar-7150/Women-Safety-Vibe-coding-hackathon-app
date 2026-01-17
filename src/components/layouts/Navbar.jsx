@@ -29,7 +29,7 @@ export default function Navbar() {
                 <Link to="/" className="flex items-center gap-3 group">
                     <img src="/src/assets/logo.png" alt="Her Vanguard" className="w-10 h-10 rounded-xl shadow-lg shadow-purple-500/20 group-hover:scale-105 transition-transform" />
                     <span className="font-bold text-xl text-slate-800">
-                        Her Vanguard
+                        harVanguard
                     </span>
                 </Link>
 

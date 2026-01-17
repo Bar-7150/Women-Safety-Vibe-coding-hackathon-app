@@ -1,4 +1,4 @@
-import { Eye, MapPin, Bell, Users, AlertTriangle, Navigation } from 'lucide-react';
+import { Eye, MapPin, Bell, Users, AlertTriangle, Navigation, Heart } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function SafetyFeatures() {
@@ -41,6 +41,15 @@ export default function SafetyFeatures() {
             color: "bg-indigo-500",
             tagColor: "bg-indigo-50 text-indigo-600",
             borderColor: "border-indigo-200"
+        },
+        {
+            icon: Heart,
+            title: "Health Monitoring",
+            tag: "Wellness",
+            description: "Track your daily health metrics, sleep patterns, and stress levels with our AI-powered health assistant.",
+            color: "bg-teal-500",
+            tagColor: "bg-teal-50 text-teal-600",
+            borderColor: "border-teal-200"
         }
     ];
 
@@ -53,7 +62,7 @@ export default function SafetyFeatures() {
                         🛡️ Safety Features
                     </div>
                     <h2 className="text-4xl md:text-5xl font-bold text-slate-900 mb-6 tracking-tight">
-                       Protection <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-purple-600">That Never Sleeps</span>
+                        Protection <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-purple-600">That Never Sleeps</span>
                     </h2>
                     <p className="text-lg text-slate-600 leading-relaxed">
                         Our intelligent safety system uses cutting-edge AI to keep you protected 24/7,
@@ -69,9 +78,11 @@ export default function SafetyFeatures() {
                             onClick={() => {
                                 if (feature.title === "Smart Location Tracking" || feature.title === "Safe Route Navigation") {
                                     navigate('/safety');
+                                } else if (feature.title === "Health Monitoring") {
+                                    navigate('/health');
                                 }
                             }}
-                            className={`group p-8 rounded-3xl bg-white border ${feature.borderColor} shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 ${(feature.title === "Smart Location Tracking" || feature.title === "Safe Route Navigation") ? 'cursor-pointer hover:border-pink-300' : ''
+                            className={`group p-8 rounded-3xl bg-white border ${feature.borderColor} shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 ${(feature.title === "Smart Location Tracking" || feature.title === "Safe Route Navigation" || feature.title === "Health Monitoring") ? 'cursor-pointer hover:border-pink-300' : ''
                                 }`}
                         >
                             <div className="flex items-start justify-between mb-6">
