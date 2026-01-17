@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
-import { Camera, Phone, MapPin, X, Trash2, Share2, Video, StopCircle, ArrowLeft, Siren, Users } from 'lucide-react';
+import { Camera, Phone, MapPin, X, Trash2, Share2, Video, StopCircle, ArrowLeft, Siren, Users, FolderOpen } from 'lucide-react';
 import './App.css';
 import SafetyReviews from './SafetyReviews';
+import VideoGallery from './VideoGallery';
+import { db } from './db';
 
 function App() {
-  const [view, setView] = useState('home'); // home, camera, contacts, reviews
+  const [view, setView] = useState('home'); // home, camera, contacts, reviews, gallery
   const [contacts, setContacts] = useState(() => {
     const saved = localStorage.getItem('soshub_contacts');
     return saved ? JSON.parse(saved) : [];
@@ -88,25 +90,18 @@ function App() {
       return;
     }
 
-    // 1. Send Text Alerts First (Immediate)
+    // 1. Send Text Alerts First
     sendWhatsAppMessages();
 
     // 2. Stop Recording & Process Video
     if (isRecording && mediaRecorderRef.current) {
       mediaRecorderRef.current.stop();
-      // Wait for the 'stop' event to process the BlobUrl, then share
-      // We'll hook into onstop or just use a small timeout hack if needed,
-      // but let's rely on the setVideoUrl trigger effect or better yet, proper promise
       setIsRecording(false);
+      // The onstop handler will save to DB and prompt share
     } else {
-      // If not recording or already stopped, just try to share what we have
       handleShareVideo();
     }
   };
-
-  // Effect to handle sharing once video is ready IF we are in an "SOS Sequence"
-  // simplified: We'll just let the user click share, OR simpler:
-  // We attach the logic to the onstop event in startRecording
 
   const startCamera = async () => {
     setView('camera');
@@ -116,7 +111,6 @@ function App() {
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
-      // Auto-start recording logic could go here if requested
     } catch (err) {
       console.error("Error accessing camera", err);
       alert("Could not access camera. Please allow permissions.");
@@ -145,14 +139,19 @@ function App() {
       if (e.data.size > 0) chunks.push(e.data);
     };
 
-    mediaRecorder.onstop = () => {
+    mediaRecorder.onstop = async () => {
       const blob = new Blob(chunks, { type: 'video/webm' });
       const url = URL.createObjectURL(blob);
       setVideoUrl(url);
 
-      // Auto-trigger share/download if we just stopped?
-      // For now, let's keep it manual or triggered by SOS button logic if we want to get fancy.
-      // But since state update is async, we'll call a helper function with the blob directly if separate.
+      // Save directly to DB
+      try {
+        await db.saveVideo(blob);
+        console.log("Video saved to gallery");
+      } catch (err) {
+        console.error("Failed to save video", err);
+      }
+
       handleShareBlob(blob);
     };
 
@@ -167,10 +166,8 @@ function App() {
     }
   };
 
-  // Helper handling the blob directly to avoid state race conditions
   const handleShareBlob = async (blob) => {
-    // Only auto-share if the user clicked SOS?
-    // To keep it simple: We always prompt share when stopped.
+    // Just helper hook if we want auto-share logic later
   };
 
   const handleShareVideo = async () => {
@@ -186,7 +183,6 @@ function App() {
   const shareOrDownload = async (blob) => {
     const file = new File([blob], "sos-evidence.webm", { type: "video/webm" });
 
-    // Check if we can share files
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       try {
         await navigator.share({
@@ -213,7 +209,7 @@ function App() {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    alert("Browser cannot auto-share video files.\n\nVideo has been DOWNLOADED to your device.\n\nPlease manually attach it to the WhatsApp chats.");
+    alert("Video downloaded & Saved to Gallery.");
   };
 
   // Render Functions
@@ -230,9 +226,14 @@ function App() {
         <Camera /> Record Evidence
       </button>
 
-      <button className="action-btn secondary-btn" onClick={() => setView('contacts')}>
-        <Phone /> Manage Contacts ({contacts.length})
-      </button>
+      <div className="grid-buttons">
+        <button className="action-btn secondary-btn" onClick={() => setView('contacts')}>
+          <Phone /> Contacts
+        </button>
+        <button className="action-btn secondary-btn" onClick={() => setView('gallery')}>
+          <FolderOpen /> Gallery
+        </button>
+      </div>
 
       <button className="action-btn" style={{ backgroundColor: '#7c3aed', marginTop: '0.5rem' }} onClick={() => setView('reviews')}>
         <Users /> Community Safety
@@ -251,7 +252,6 @@ function App() {
         <button className="icon-btn" onClick={stopCamera}>
           <ArrowLeft />
         </button>
-        {/* SOS Button inside camera */}
         <button className="sos-btn-mini" onClick={handleCameraSOS}>
           SOS
         </button>
@@ -333,6 +333,7 @@ function App() {
       {view === 'camera' && renderCamera()}
       {view === 'contacts' && renderContacts()}
       {view === 'reviews' && <SafetyReviews onBack={() => setView('home')} />}
+      {view === 'gallery' && <VideoGallery onBack={() => setView('home')} />}
     </>
   );
 }

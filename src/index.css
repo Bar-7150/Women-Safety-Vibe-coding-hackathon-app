@@ -407,3 +407,124 @@ select {
   gap: 1rem;
   margin-top: 1rem;
 }
+
+/* Gallery Styles */
+.grid-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.gallery-container {
+  width: 100%;
+}
+
+.video-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  padding: 0.5rem 0;
+}
+
+.video-card {
+  background: #1f2937;
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 1px solid #4b5563;
+}
+
+.video-thumbnail {
+  width: 100%;
+  aspect-ratio: 9/16;
+  background: black;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.play-icon {
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+}
+
+.video-info {
+  padding: 0.8rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.video-date {
+  font-size: 0.7rem;
+  color: #9ca3af;
+}
+
+.video-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.icon-btn-small {
+  background: transparent;
+  border: 1px solid #4b5563;
+  color: white;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-btn-small:hover {
+  background: #374151;
+}
+
+.icon-btn-small.delete:hover {
+  background: #ef4444;
+  border-color: #ef4444;
+}
+
+/* Video Modal */
+.video-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.9);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.video-modal {
+  background: #1f2937;
+  padding: 1rem;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 500px;
+}
+
+.modal-video {
+  width: 100%;
+  max-height: 70vh;
+  border-radius: 8px;
+  margin: 1rem 0;
+  background: black;
+}
+
+.modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
